@@ -1,0 +1,90 @@
+<?xml version='1.0' encoding='windows-1252'?>
+<!--
+  WiX source for BLE Presence Lock (WiX Toolset v3 / cargo-wix).
+  Variables {{...}} are substituted by cargo-wix at build time.
+-->
+<?if $(sys.BUILDARCH) = x64 ?>
+  <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?else ?>
+  <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+<?endif ?>
+<Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
+  <Product
+    Id='*'
+    Name='BLE Presence Lock'
+    UpgradeCode='A7C3E1F2-9B4D-4E8A-8F2C-1D5E6A7B8C9D'
+    Manufacturer='BLE Presence Lock Contributors'
+    Language='1033'
+    Codepage='1252'
+    Version='$(var.Version)'>
+
+    <Package
+      Id='*'
+      Keywords='Installer'
+      Description='BLE Presence Lock Installer'
+      Manufacturer='BLE Presence Lock Contributors'
+      InstallerVersion='500'
+      Languages='1033'
+      Compressed='yes'
+      InstallScope='perMachine'
+      SummaryCodepage='1252' />
+
+    <MajorUpgrade
+      Schedule='afterInstallInitialize'
+      DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.' />
+
+    <Media Id='1' Cabinet='cabinet.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
+    <Property Id='DiskPrompt' Value='BLE Presence Lock Installation' />
+
+    <Directory Id='TARGETDIR' Name='SourceDir'>
+      <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+        <Directory Id='APPLICATIONFOLDER' Name='BLE Presence Lock'>
+          <Component Id='BinaryComponent' Guid='B1C2D3E4-F5A6-4789-8ABC-DEF012345678'>
+            <File
+              Id='BlePresenceLockExe'
+              Name='ble-presence-lock.exe'
+              DiskId='1'
+              Source='target\release\ble-presence-lock.exe'
+              KeyPath='yes' />
+            <File
+              Id='ConfigExample'
+              Name='config.example.yaml'
+              DiskId='1'
+              Source='config.example.yaml' />
+            <File
+              Id='DefaultConfig'
+              Name='config.yaml'
+              DiskId='1'
+              Source='config.example.yaml' />
+            <Shortcut
+              Id='StartMenuShortcut'
+              Directory='ProgramMenuFolder'
+              Name='BLE Presence Lock'
+              WorkingDirectory='APPLICATIONFOLDER'
+              Icon='ProductIcon'
+              IconIndex='0'
+              Advertise='yes' />
+          </Component>
+        </Directory>
+      </Directory>
+      <Directory Id='ProgramMenuFolder' />
+    </Directory>
+
+    <Feature
+      Id='MainProgram'
+      Title='BLE Presence Lock'
+      Description='Install BLE Presence Lock application files.'
+      Level='1'
+      ConfigurableDirectory='APPLICATIONFOLDER'>
+      <ComponentRef Id='BinaryComponent' />
+    </Feature>
+
+    <Icon Id='ProductIcon' SourceFile='packaging\windows\icon.ico' />
+    <Property Id='ARPPRODUCTICON' Value='ProductIcon' />
+
+    <UI />
+    <UIRef Id='WixUI_InstallDir' />
+    <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf' />
+    <Property Id='WIXUI_INSTALLDIR' Value='APPLICATIONFOLDER' />
+  </Product>
+</Wix>
