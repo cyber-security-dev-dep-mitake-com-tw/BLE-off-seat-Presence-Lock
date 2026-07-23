@@ -1,0 +1,39 @@
+[package]
+name = "ble-presence-lock"
+version = "0.1.0"
+edition = "2021"
+authors = ["BLE Presence Lock Contributors"]
+description = "Cross-platform BLE presence detection daemon with auto screen lock"
+license = "Apache-2.0"
+
+[dependencies]
+btleplug = { version = "0.12", features = ["serde"] }
+eframe = { version = "0.35", features = ["glow"] }
+egui = "0.35"
+tray-icon = "0.24"
+windows = { version = "0.62", features = ["Win32_System_Shutdown"], optional = true }
+serde = { version = "1", features = ["derive"] }
+serde_yaml = "0.9"
+tokio = { version = "1", features = ["rt-multi-thread", "time", "sync", "net"] }
+clap = { version = "4", features = ["derive"] }
+log = "0.4"
+env_logger = "0.11"
+futures = "0.3"
+uuid = { version = "1", features = ["v4"] }
+chrono = { version = "0.4", features = ["serde"] }
+crossbeam-channel = "0.5"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows = { version = "0.62", features = ["Win32_System_Shutdown"] }
+
+[dev-dependencies]
+mockall = "1.2"
+tempfile = "3"
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.release.package."*"]
+opt-level = 3
