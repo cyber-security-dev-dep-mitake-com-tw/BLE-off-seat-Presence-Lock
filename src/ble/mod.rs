@@ -41,7 +41,7 @@ impl Scanner {
     }
 }
 
-fn device_matches(name: &str, device_name: &str, whitelist: &[String]) -> bool {
+pub(crate) fn device_matches(name: &str, device_name: &str, whitelist: &[String]) -> bool {
     if !whitelist.is_empty() {
         return whitelist
             .iter()
@@ -50,5 +50,3 @@ fn device_matches(name: &str, device_name: &str, whitelist: &[String]) -> bool {
     name.to_ascii_lowercase()
         .contains(&device_name.to_ascii_lowercase())
 }
-
-pub(crate) use device_matches;

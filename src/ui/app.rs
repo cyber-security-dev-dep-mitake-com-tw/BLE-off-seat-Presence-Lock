@@ -64,9 +64,9 @@ impl PresenceApp {
 }
 
 impl eframe::App for PresenceApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         if let Some(tray) = &self.tray {
-            tray.poll(ctx, &self.cmd_tx);
+            tray.poll(ui.ctx(), &self.cmd_tx);
         }
 
         let snapshot = self
@@ -75,7 +75,7 @@ impl eframe::App for PresenceApp {
             .map(|s| s.clone())
             .unwrap_or_default();
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show(ui, |ui| {
             ui.heading("BLE Presence Lock");
             ui.separator();
 
@@ -124,12 +124,13 @@ impl eframe::App for PresenceApp {
                 }
                 if ui.button("Quit").clicked() {
                     let _ = self.cmd_tx.send(UiCommand::Quit);
-                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
         });
 
-        // Keep UI responsive while monitor updates status.
-        ctx.request_repaint_after(std::time::Duration::from_millis(250));
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(250));
     }
 }

@@ -76,7 +76,7 @@ impl TrayHandle {
     }
 }
 
-fn make_icon() -> Result<Icon, tray_icon::Error> {
+fn make_icon() -> Result<Icon, String> {
     // Simple 32x32 solid blue icon (RGBA).
     let size = 32u32;
     let mut rgba = Vec::with_capacity((size * size * 4) as usize);
@@ -90,5 +90,5 @@ fn make_icon() -> Result<Icon, tray_icon::Error> {
             }
         }
     }
-    Icon::from_rgba(rgba, size, size)
+    Icon::from_rgba(rgba, size, size).map_err(|e| e.to_string())
 }
