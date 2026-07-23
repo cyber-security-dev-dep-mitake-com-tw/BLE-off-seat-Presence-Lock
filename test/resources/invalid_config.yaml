@@ -1,0 +1,4 @@
+device_name: "iPhone"
+ema_alpha: 2.5
+grace_period: 0
+log_level: "verbose"

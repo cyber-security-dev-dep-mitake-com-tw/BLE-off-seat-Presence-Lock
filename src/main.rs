@@ -39,8 +39,7 @@ struct Cli {
     mock: bool,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
+fn main() -> Result<()> {
     let cli = Cli::parse();
     let config = Config::load(&cli.config).with_context(|| {
         format!(
@@ -66,7 +65,8 @@ async fn main() -> Result<()> {
     let locker = create_locker(cli.mock);
 
     if cli.headless {
-        run_headless(config, cli.mock, locker).await
+        let rt = tokio::runtime::Runtime::new().context("failed to create tokio runtime")?;
+        rt.block_on(run_headless(config, cli.mock, locker))
     } else {
         run_gui(config, cli.mock, locker)
     }

@@ -1,0 +1,8 @@
+device_name: "iPhone"
+rssi_threshold: -80
+grace_period: 10
+ema_alpha: 0.2
+scan_interval: 1
+log_level: "info"
+auto_start: true
+device_whitelist: []

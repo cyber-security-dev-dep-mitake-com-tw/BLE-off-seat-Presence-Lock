@@ -1,37 +1,14 @@
-# BLE Presence Lock Configuration
-# ================================
-# Place this file as config.yaml next to the binary, or specify path with --config.
+# BLE Presence Lock — example configuration
+# Copy to config.yaml next to the binary, or pass --config <PATH>.
 
-# Name of the BLE device to track (as it appears in OS Bluetooth settings).
-# Example: "iPhone", "Apple Watch", "Galaxy Watch"
 device_name: "iPhone"
-
-# RSSI threshold in dBm. When smoothed RSSI drops below this, grace period starts.
-# Typical values: -70 (close), -80 (medium), -90 (far)
 rssi_threshold: -80
-
-# Grace period in seconds. System will not lock until RSSI stays below
-# threshold for this duration. Prevents false locks from temporary obstruction.
 grace_period: 10
-
-# EMA (Exponential Moving Average) alpha. Controls smoothing of RSSI readings.
-# Lower = more smoothing, slower response. Higher = less smoothing, faster response.
-# Range: 0.0 - 1.0
 ema_alpha: 0.2
-
-# Interval in seconds between BLE scan/read cycles.
 scan_interval: 2
-
-# Log level: "debug", "info", "warn", "error"
 log_level: "info"
-
-# Automatically start monitoring on application launch.
 auto_start: true
-
-# Optional: List of device names to whitelist. If non-empty, only these
-# devices will be tracked. If empty, only device_name is tracked.
 device_whitelist: []
 
-# Optional: Enable debug mode which reads RSSI from a file instead of BLE.
-# Useful for testing without real hardware.
+# Optional: mock RSSI file (used with --mock)
 # debug_mock_file: "/tmp/rssi_mock.txt"
