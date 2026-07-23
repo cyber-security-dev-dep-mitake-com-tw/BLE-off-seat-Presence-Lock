@@ -266,7 +266,7 @@ fn run_gui(config: Config, use_mock: bool, locker: Box<dyn ScreenLocker>) -> Res
 
     let options = eframe::NativeOptions {
         viewport: ViewportBuilder::default()
-            .with_inner_size([420.0, 280.0])
+            .with_inner_size([460.0, 360.0])
             .with_title("BLE Presence Lock"),
         ..Default::default()
     };
@@ -292,6 +292,8 @@ struct PresenceEngine {
     ema: EmaFilter,
     debouncer: Debouncer,
     already_locked: bool,
+    /// Do not lock until the target has been observed at least once.
+    armed: bool,
     threshold: i16,
 }
 
@@ -301,6 +303,7 @@ impl PresenceEngine {
             ema: EmaFilter::new(config.ema_alpha),
             debouncer: Debouncer::new(config.rssi_threshold, config.grace_period),
             already_locked: false,
+            armed: false,
             threshold: config.rssi_threshold,
         }
     }
@@ -309,6 +312,7 @@ impl PresenceEngine {
         self.ema.reset();
         self.debouncer.reset();
         self.already_locked = false;
+        self.armed = false;
     }
 
     async fn tick(
@@ -318,24 +322,65 @@ impl PresenceEngine {
         locker: &dyn ScreenLocker,
         status: &Arc<Mutex<MonitorStatus>>,
     ) -> Result<()> {
-        match scanner
+        let cycle = scanner
             .scan_once(&config.device_name, &config.device_whitelist)
-            .await?
-        {
+            .await?;
+
+        set_candidates(status, cycle.candidates.clone());
+
+        match cycle.reading {
             Some(reading) => {
+                self.armed = true;
                 let smoothed = self.ema.update(reading.rssi as f64);
                 let state = self.debouncer.update(smoothed);
-                update_status(status, Some(reading.rssi), Some(smoothed), state, None);
+                update_status(
+                    status,
+                    Some(reading.rssi),
+                    Some(smoothed),
+                    state,
+                    Some(format!(
+                        "Seen via {} as '{}'",
+                        cycle.source, reading.device_name
+                    )),
+                    true,
+                );
 
                 info!(
-                    "device='{}' raw={} smoothed={:.1} state={:?}",
-                    reading.device_name, reading.rssi, smoothed, state
+                    "device='{}' raw={} smoothed={:.1} state={:?} source={}",
+                    reading.device_name, reading.rssi, smoothed, state, cycle.source
                 );
 
                 self.handle_state(state, locker, status, Some(reading.rssi), smoothed)?;
             }
             None => {
-                // Missing advertisement ≈ away (synthetic weak RSSI).
+                let hint = if cycle.candidates.is_empty() {
+                    format!(
+                        "Target '{}' not seen. No paired/BLE names found — check Bluetooth permission and System Settings → Bluetooth pairing.",
+                        config.device_name
+                    )
+                } else {
+                    format!(
+                        "Target '{}' not seen. Set device_name in config.yaml to one of: {}",
+                        config.device_name,
+                        cycle.candidates.iter().take(8).cloned().collect::<Vec<_>>().join(", ")
+                    )
+                };
+
+                if !self.armed {
+                    // Misconfiguration / not yet paired: do NOT lock.
+                    update_status(
+                        status,
+                        None,
+                        None,
+                        PresenceState::Present,
+                        Some(hint),
+                        false,
+                    );
+                    warn!("target not seen yet; lock armed=false");
+                    return Ok(());
+                }
+
+                // Armed: device previously seen, now missing ⇒ treat as away.
                 let synthetic = f64::from(self.threshold) - 20.0;
                 let smoothed = self.ema.update(synthetic);
                 let state = self.debouncer.update(smoothed);
@@ -344,9 +389,10 @@ impl PresenceEngine {
                     None,
                     Some(smoothed),
                     state,
-                    Some("Device not seen".into()),
+                    Some(hint),
+                    true,
                 );
-                warn!("target device not found; treating as away");
+                warn!("target device lost; treating as away");
                 self.handle_state(state, locker, status, None, smoothed)?;
             }
         }
@@ -373,6 +419,7 @@ impl PresenceEngine {
                             Some(smoothed),
                             state,
                             Some("Screen locked".into()),
+                            true,
                         );
                     }
                     Err(e) => {
@@ -383,6 +430,7 @@ impl PresenceEngine {
                             Some(smoothed),
                             state,
                             Some(format!("Lock failed: {e}")),
+                            true,
                         );
                         return Err(e);
                     }
@@ -395,17 +443,25 @@ impl PresenceEngine {
     }
 }
 
+fn set_candidates(status: &Arc<Mutex<MonitorStatus>>, candidates: Vec<String>) {
+    if let Ok(mut s) = status.lock() {
+        s.candidates = candidates;
+    }
+}
+
 fn update_status(
     status: &Arc<Mutex<MonitorStatus>>,
     raw: Option<i16>,
     smoothed: Option<f64>,
     state: PresenceState,
     message: Option<String>,
+    armed: bool,
 ) {
     if let Ok(mut s) = status.lock() {
         s.raw_rssi = raw;
         s.smoothed_rssi = smoothed;
         s.state = state;
+        s.armed = armed;
         if let Some(m) = message {
             s.last_message = m;
         }

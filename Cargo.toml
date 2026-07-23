@@ -29,6 +29,10 @@ thiserror = "2"
 anyhow = "1"
 crossbeam-channel = "0.5"
 
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-foundation = "0.3"
+objc2-io-bluetooth = "0.3"
+
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.62", features = ["Win32_System_Shutdown"] }
 

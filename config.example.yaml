@@ -1,6 +1,8 @@
 # BLE Presence Lock — example configuration
 # Copy to config.yaml next to the binary, or pass --config <PATH>.
 
+# Name of the BLE/Bluetooth device to track — must match System Settings → Bluetooth.
+# Example: "Dennis's iPhone", "Apple Watch", "Garmin Venu"
 device_name: "iPhone"
 rssi_threshold: -80
 grace_period: 10

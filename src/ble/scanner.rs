@@ -3,9 +3,10 @@ use btleplug::api::{Central, Manager as _, Peripheral as _, ScanFilter};
 use btleplug::platform::{Adapter, Manager};
 use tokio::time::{Duration, sleep};
 
-use super::{BleScanResult, device_matches};
+use super::os_paired::query_paired_devices;
+use super::{BleScanResult, ScanCycle, device_matches};
 
-/// Real BLE scanner backed by btleplug.
+/// Real BLE / OS-paired scanner backed by btleplug + platform paired-device APIs.
 pub struct BtleScanner {
     adapter: Adapter,
 }
@@ -30,14 +31,25 @@ impl BtleScanner {
         &mut self,
         device_name: &str,
         whitelist: &[String],
-    ) -> Result<Option<BleScanResult>> {
+    ) -> Result<ScanCycle> {
+        // 1) OS-paired devices (classic + BLE) — matches README pairing model.
+        let os = query_paired_devices(device_name, whitelist);
+        let mut candidates = os.candidates;
+        if let Some(reading) = os.reading {
+            return Ok(ScanCycle {
+                reading: Some(reading),
+                candidates,
+                source: "os-paired",
+            });
+        }
+
+        // 2) BLE advertisement / GATT scan via btleplug.
         self.adapter
             .start_scan(ScanFilter::default())
             .await
             .context("failed to start BLE scan")?;
 
-        // Allow advertisements to arrive.
-        sleep(Duration::from_millis(1500)).await;
+        sleep(Duration::from_millis(2000)).await;
 
         let peripherals = self
             .adapter
@@ -46,6 +58,7 @@ impl BtleScanner {
             .context("failed to enumerate peripherals")?;
 
         let mut best: Option<BleScanResult> = None;
+        let mut ble_names = Vec::new();
 
         for peripheral in peripherals {
             let props = match peripheral.properties().await {
@@ -53,32 +66,46 @@ impl BtleScanner {
                 _ => continue,
             };
 
-            let Some(name) = props.local_name.as_deref() else {
+            let name = props.local_name.clone().filter(|n| !n.trim().is_empty());
+
+            let Some(name) = name else {
                 continue;
             };
 
-            if !device_matches(name, device_name, whitelist) {
+            ble_names.push(name.clone());
+
+            if !device_matches(&name, device_name, whitelist) {
                 continue;
             }
 
-            // Prefer advertisement RSSI; fall back to read_rssi when connected.
+            let display_name = name.clone();
+
             let rssi = if let Some(r) = props.rssi {
                 r
             } else {
+                // Connect and read RSSI when advertisement has no RSSI.
+                if !peripheral.is_connected().await.unwrap_or(false) {
+                    if let Err(e) = peripheral.connect().await {
+                        log::debug!("BLE connect failed for {display_name}: {e}");
+                        continue;
+                    }
+                }
                 match peripheral.read_rssi().await {
                     Ok(r) => r,
                     Err(e) => {
-                        log::debug!("read_rssi failed for {name}: {e}");
+                        log::debug!("read_rssi failed for {display_name}: {e}");
+                        let _ = peripheral.disconnect().await;
                         continue;
                     }
                 }
             };
 
+            log::info!("[ble-scan] matched '{display_name}' rssi={rssi} dBm");
+
             let candidate = BleScanResult {
-                device_name: name.to_string(),
+                device_name: display_name,
                 rssi,
             };
-
             best = Some(match best {
                 Some(prev) if prev.rssi >= candidate.rssi => prev,
                 _ => candidate,
@@ -89,11 +116,25 @@ impl BtleScanner {
             log::debug!("stop_scan: {e}");
         }
 
+        candidates.extend(ble_names);
+        candidates.sort();
+        candidates.dedup();
+
         if best.is_none() {
-            // Not an error — device simply not in range / advertising.
-            log::debug!("no matching BLE device found for '{device_name}'");
+            log::info!(
+                "no match for '{device_name}'. paired/seen devices: {}",
+                if candidates.is_empty() {
+                    "<none — check Bluetooth permission / pairing>".into()
+                } else {
+                    candidates.join(", ")
+                }
+            );
         }
 
-        Ok(best)
+        Ok(ScanCycle {
+            reading: best,
+            candidates,
+            source: "ble-scan",
+        })
     }
 }

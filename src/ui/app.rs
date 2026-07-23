@@ -11,6 +11,10 @@ pub struct MonitorStatus {
     pub smoothed_rssi: Option<f64>,
     pub state: PresenceState,
     pub last_message: String,
+    /// True after the target has been observed at least once this session.
+    pub armed: bool,
+    /// Nearby / paired device names to help pick the correct config value.
+    pub candidates: Vec<String>,
 }
 
 impl Default for MonitorStatus {
@@ -22,6 +26,8 @@ impl Default for MonitorStatus {
             smoothed_rssi: None,
             state: PresenceState::Present,
             last_message: "Idle".into(),
+            armed: false,
+            candidates: Vec::new(),
         }
     }
 }
@@ -111,8 +117,28 @@ impl eframe::App for PresenceApp {
                 }
                 PresenceState::Absent => "Absent (lock)".to_string(),
             };
-            ui.label(format!("Presence: {state_text}"));
+            ui.label(format!(
+                "Presence: {}{}",
+                state_text,
+                if snapshot.armed {
+                    ""
+                } else {
+                    " (waiting for first sighting)"
+                }
+            ));
             ui.label(format!("Message: {}", snapshot.last_message));
+
+            if !snapshot.candidates.is_empty() {
+                ui.add_space(8.0);
+                ui.label("Paired / seen devices:");
+                egui::ScrollArea::vertical()
+                    .max_height(90.0)
+                    .show(ui, |ui| {
+                        for name in &snapshot.candidates {
+                            ui.label(format!("• {name}"));
+                        }
+                    });
+            }
 
             ui.add_space(12.0);
             ui.horizontal(|ui| {

@@ -1,4 +1,5 @@
 pub mod mock;
+pub mod os_paired;
 pub mod scanner;
 
 use anyhow::Result;
@@ -6,14 +7,22 @@ use anyhow::Result;
 use self::mock::MockScanner;
 use self::scanner::BtleScanner;
 
-/// One RSSI observation from a BLE scan cycle.
+/// One RSSI observation from a scan cycle.
 #[derive(Debug, Clone)]
 pub struct BleScanResult {
     pub device_name: String,
     pub rssi: i16,
 }
 
-/// Scanner backend selected at startup (`--mock` or real btleplug).
+/// Result of one monitoring poll, including discovery hints for the UI.
+#[derive(Debug, Clone)]
+pub struct ScanCycle {
+    pub reading: Option<BleScanResult>,
+    pub candidates: Vec<String>,
+    pub source: &'static str,
+}
+
+/// Scanner backend selected at startup (`--mock` or real BLE/OS).
 pub enum Scanner {
     Real(BtleScanner),
     Mock(MockScanner),
@@ -28,12 +37,12 @@ impl Scanner {
         Self::Mock(MockScanner::new(mock_file))
     }
 
-    /// Perform one scan cycle and return the best matching device reading.
+    /// Perform one scan cycle.
     pub async fn scan_once(
         &mut self,
         device_name: &str,
         whitelist: &[String],
-    ) -> Result<Option<BleScanResult>> {
+    ) -> Result<ScanCycle> {
         match self {
             Self::Real(s) => s.scan_once(device_name, whitelist).await,
             Self::Mock(s) => s.scan_once(device_name, whitelist).await,

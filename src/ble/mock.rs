@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use std::fs;
 use std::path::PathBuf;
 
-use super::{BleScanResult, device_matches};
+use super::{BleScanResult, ScanCycle, device_matches};
 
 /// Mock BLE scanner for testing without hardware.
 ///
@@ -28,10 +28,9 @@ impl MockScanner {
         &mut self,
         device_name: &str,
         whitelist: &[String],
-    ) -> Result<Option<BleScanResult>> {
+    ) -> Result<ScanCycle> {
         self.tick = self.tick.wrapping_add(1);
 
-        // Whitelist / name gate still applies for realism.
         let name = if !whitelist.is_empty() {
             whitelist[0].clone()
         } else {
@@ -39,7 +38,11 @@ impl MockScanner {
         };
 
         if !device_matches(&name, device_name, whitelist) {
-            return Ok(None);
+            return Ok(ScanCycle {
+                reading: None,
+                candidates: vec![name],
+                source: "mock",
+            });
         }
 
         let rssi = self.read_rssi()?;
@@ -50,10 +53,14 @@ impl MockScanner {
             rssi
         );
 
-        Ok(Some(BleScanResult {
-            device_name: name,
-            rssi,
-        }))
+        Ok(ScanCycle {
+            reading: Some(BleScanResult {
+                device_name: name.clone(),
+                rssi,
+            }),
+            candidates: vec![name],
+            source: "mock",
+        })
     }
 
     fn read_rssi(&self) -> Result<i16> {
@@ -63,9 +70,9 @@ impl MockScanner {
                     .with_context(|| format!("failed to read mock RSSI file {}", path.display()))?;
                 let trimmed = raw.trim();
                 if !trimmed.is_empty() {
-                    let value: i16 = trimmed.parse().with_context(|| {
-                        format!("invalid RSSI in mock file: '{trimmed}'")
-                    })?;
+                    let value: i16 = trimmed
+                        .parse()
+                        .with_context(|| format!("invalid RSSI in mock file: '{trimmed}'"))?;
                     return Ok(value);
                 }
             }
@@ -83,7 +90,8 @@ mod tests {
     #[tokio::test]
     async fn returns_default_rssi() {
         let mut s = MockScanner::new(None);
-        let r = s.scan_once("iPhone", &[]).await.unwrap().unwrap();
+        let cycle = s.scan_once("iPhone", &[]).await.unwrap();
+        let r = cycle.reading.unwrap();
         assert_eq!(r.rssi, -50);
         assert_eq!(r.device_name, "iPhone");
     }
@@ -93,7 +101,7 @@ mod tests {
         let mut f = NamedTempFile::new().unwrap();
         write!(f, "-88\n").unwrap();
         let mut s = MockScanner::new(Some(f.path().display().to_string()));
-        let r = s.scan_once("iPhone", &[]).await.unwrap().unwrap();
+        let r = s.scan_once("iPhone", &[]).await.unwrap().reading.unwrap();
         assert_eq!(r.rssi, -88);
     }
 }
