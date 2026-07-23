@@ -30,31 +30,45 @@ struct Cli {
     #[arg(long)]
     headless: bool,
 
-    /// Path to config.yaml
-    #[arg(long, default_value = "config.yaml")]
-    config: PathBuf,
+    /// Path to config.yaml (default: auto-detect beside binary / app support)
+    #[arg(long)]
+    config: Option<PathBuf>,
 
     /// Use mock BLE scanner (for testing)
     #[arg(long)]
     mock: bool,
 }
 
-fn main() -> Result<()> {
+fn main() {
+    if let Err(err) = try_main() {
+        eprintln!("Error: {err:?}");
+        show_startup_error(&format!("{err:#}"));
+        std::process::exit(1);
+    }
+}
+
+fn try_main() -> Result<()> {
     let cli = Cli::parse();
-    let config = Config::load(&cli.config).with_context(|| {
+    let config_path = cli
+        .config
+        .clone()
+        .unwrap_or_else(Config::resolve_default_path);
+
+    let config = Config::load(&config_path).with_context(|| {
         format!(
-            "failed to load config from {} (copy config.example.yaml)",
-            cli.config.display()
+            "failed to load config from {} (copy config.example.yaml or pass --config)",
+            config_path.display()
         )
     })?;
 
     init_logger(&config.log_level);
 
     info!(
-        "BLE Presence Lock v{} starting (headless={}, mock={})",
+        "BLE Presence Lock v{} starting (headless={}, mock={}, config={})",
         env!("CARGO_PKG_VERSION"),
         cli.headless,
-        cli.mock
+        cli.mock,
+        config_path.display()
     );
     info!(
         "tracking device='{}' threshold={} dBm grace={}s",
@@ -69,6 +83,36 @@ fn main() -> Result<()> {
         rt.block_on(run_headless(config, cli.mock, locker))
     } else {
         run_gui(config, cli.mock, locker)
+    }
+}
+
+/// Show a visible error when launched from Finder (stderr alone is invisible).
+fn show_startup_error(message: &str) {
+    #[cfg(target_os = "macos")]
+    {
+        let escaped = message.replace('\\', "\\\\").replace('"', "\\\"");
+        let script = format!(
+            "display dialog \"{escaped}\" with title \"BLE Presence Lock\" buttons {{\"OK\"}} default button 1 with icon stop"
+        );
+        let _ = std::process::Command::new("osascript")
+            .args(["-e", &script])
+            .status();
+    }
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+        let escaped = message.replace('\'', "''");
+        let _ = std::process::Command::new("powershell")
+            .args([
+                "-NoProfile",
+                "-Command",
+                &format!(
+                    "Add-Type -AssemblyName PresentationFramework; [System.Windows.MessageBox]::Show('{escaped}','BLE Presence Lock','OK','Error') | Out-Null"
+                ),
+            ])
+            .creation_flags(CREATE_NO_WINDOW)
+            .status();
     }
 }
 

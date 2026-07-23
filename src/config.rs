@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 #[derive(Debug, Error)]
@@ -95,6 +95,46 @@ impl Config {
         Ok(config)
     }
 
+    /// Resolve the config file used when `--config` is not overridden.
+    ///
+    /// Search order:
+    /// 1. `./config.yaml` (CLI / current working directory)
+    /// 2. `<exe_dir>/config.yaml` (macOS .app Contents/MacOS)
+    /// 3. Seed `~/Library/Application Support/.../config.yaml` from bundled example
+    /// 4. Bundled `Resources/config.example.yaml`
+    pub fn resolve_default_path() -> PathBuf {
+        let cwd = PathBuf::from("config.yaml");
+        if cwd.is_file() {
+            return cwd;
+        }
+
+        if let Some(exe_dir) = executable_dir() {
+            let beside_exe = exe_dir.join("config.yaml");
+            if beside_exe.is_file() {
+                return beside_exe;
+            }
+
+            let bundled = exe_dir
+                .join("..")
+                .join("Resources")
+                .join("config.example.yaml");
+            if let Ok(bundled) = bundled.canonicalize() {
+                if bundled.is_file() {
+                    if let Some(user_path) = ensure_user_config(&bundled) {
+                        return user_path;
+                    }
+                    return bundled;
+                }
+            }
+        }
+
+        if let Some(user_path) = ensure_user_config_from_defaults() {
+            return user_path;
+        }
+
+        PathBuf::from("config.yaml")
+    }
+
     pub fn validate(&self) -> Result<(), ConfigError> {
         if self.device_name.trim().is_empty() {
             return Err(ConfigError::Validation(
@@ -139,6 +179,62 @@ impl Config {
         name.to_ascii_lowercase()
             .contains(&self.device_name.to_ascii_lowercase())
     }
+}
+
+fn executable_dir() -> Option<PathBuf> {
+    std::env::current_exe()
+        .ok()
+        .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+}
+
+fn user_config_dir() -> Option<PathBuf> {
+    #[cfg(target_os = "macos")]
+    {
+        let home = std::env::var_os("HOME")?;
+        return Some(
+            PathBuf::from(home)
+                .join("Library")
+                .join("Application Support")
+                .join("BLE Presence Lock"),
+        );
+    }
+    #[cfg(target_os = "windows")]
+    {
+        let base = std::env::var_os("APPDATA")?;
+        return Some(PathBuf::from(base).join("BLE Presence Lock"));
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
+    {
+        let home = std::env::var_os("HOME")?;
+        Some(
+            PathBuf::from(home)
+                .join(".config")
+                .join("ble-presence-lock"),
+        )
+    }
+}
+
+fn ensure_user_config(template: &Path) -> Option<PathBuf> {
+    let dir = user_config_dir()?;
+    let path = dir.join("config.yaml");
+    if path.is_file() {
+        return Some(path);
+    }
+    fs::create_dir_all(&dir).ok()?;
+    fs::copy(template, &path).ok()?;
+    Some(path)
+}
+
+fn ensure_user_config_from_defaults() -> Option<PathBuf> {
+    let dir = user_config_dir()?;
+    let path = dir.join("config.yaml");
+    if path.is_file() {
+        return Some(path);
+    }
+    fs::create_dir_all(&dir).ok()?;
+    let yaml = serde_yaml::to_string(&Config::default()).ok()?;
+    fs::write(&path, yaml).ok()?;
+    Some(path)
 }
 
 #[cfg(test)]
@@ -190,11 +286,7 @@ device_whitelist: ["Watch", "Phone"]
     #[test]
     fn rejects_invalid_ema_alpha() {
         let mut f = NamedTempFile::new().unwrap();
-        write!(
-            f,
-            "device_name: \"x\"\nema_alpha: 1.5\n"
-        )
-        .unwrap();
+        write!(f, "device_name: \"x\"\nema_alpha: 1.5\n").unwrap();
         let err = Config::load(f.path()).unwrap_err();
         assert!(matches!(err, ConfigError::Validation(_)));
     }

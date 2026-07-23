@@ -1,5 +1,5 @@
-use anyhow::{Result, bail};
-use windows::Win32::UI::WindowsAndMessaging::LockWorkStation;
+use anyhow::{Context, Result};
+use windows::Win32::System::Shutdown::LockWorkStation;
 
 use super::ScreenLocker;
 
@@ -10,11 +10,6 @@ impl ScreenLocker for WinLocker {
     fn lock_screen(&self) -> Result<()> {
         // SAFETY: LockWorkStation has no parameters and is safe to call from
         // an interactive user session.
-        let ok = unsafe { LockWorkStation() };
-        if ok.as_bool() {
-            Ok(())
-        } else {
-            bail!("LockWorkStation returned FALSE");
-        }
+        unsafe { LockWorkStation() }.context("LockWorkStation failed")
     }
 }

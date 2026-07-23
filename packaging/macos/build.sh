@@ -58,13 +58,21 @@ sed "s/APP_VERSION/${VERSION}/g" packaging/macos/Info.plist > "${CONTENTS}/Info.
 cp "$UNIVERSAL" "${CONTENTS}/MacOS/${BINARY_NAME}"
 cp config.example.yaml "${CONTENTS}/Resources/config.example.yaml"
 
-# Default config next to binary so --config default works when launched from app.
+# Default config next to binary (used when app resolves path relative to exe).
 cp config.example.yaml "${CONTENTS}/MacOS/config.yaml"
+
+# Ad-hoc sign the bundle so Info.plist (Bluetooth usage text) is bound to the binary.
+# Without this, macOS may treat the binary as linker-signed only and ignore Info.plist.
+echo "==> Ad-hoc codesign"
+codesign --force --deep --sign - "${APP_DIR}"
 
 mkdir -p "$DIST_DIR"
 APP_OUT="${DIST_DIR}/${APP_NAME}.app"
 rm -rf "$APP_OUT"
 cp -R "$APP_DIR" "$APP_OUT"
+
+# Re-sign after copy (extended attributes / quarantine can invalidate signature).
+codesign --force --deep --sign - "$APP_OUT"
 echo "==> App bundle: $APP_OUT"
 
 # --- DMG ---
