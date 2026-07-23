@@ -51,11 +51,16 @@ impl Scanner {
 }
 
 pub(crate) fn device_matches(name: &str, device_name: &str, whitelist: &[String]) -> bool {
+    let norm = |s: &str| {
+        s.to_ascii_lowercase()
+            .replace(" [le]", "")
+            .trim()
+            .to_string()
+    };
+    let n = norm(name);
     if !whitelist.is_empty() {
-        return whitelist
-            .iter()
-            .any(|w| w.eq_ignore_ascii_case(name));
+        return whitelist.iter().any(|w| norm(w) == n || n.contains(&norm(w)));
     }
-    name.to_ascii_lowercase()
-        .contains(&device_name.to_ascii_lowercase())
+    let target = norm(device_name);
+    !target.is_empty() && n.contains(&target)
 }

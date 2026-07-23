@@ -111,7 +111,7 @@ impl eframe::App for PresenceApp {
             ));
 
             let state_text = match snapshot.state {
-                PresenceState::Present => "Present".to_string(),
+                PresenceState::Present => "Present (nearby)".to_string(),
                 PresenceState::Departing { remaining_secs } => {
                     format!("Departing ({remaining_secs}s)")
                 }
@@ -127,6 +127,10 @@ impl eframe::App for PresenceApp {
                 }
             ));
             ui.label(format!("Message: {}", snapshot.last_message));
+            ui.small(
+                "Note: Present = radio nearby (BLE advertisement / RSSI). \
+                 This is NOT the same as System Settings → Bluetooth → Connected.",
+            );
 
             if !snapshot.candidates.is_empty() {
                 ui.add_space(8.0);

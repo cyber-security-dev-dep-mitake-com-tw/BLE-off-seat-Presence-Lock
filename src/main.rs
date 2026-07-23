@@ -339,8 +339,8 @@ impl PresenceEngine {
                     Some(smoothed),
                     state,
                     Some(format!(
-                        "Seen via {} as '{}'",
-                        cycle.source, reading.device_name
+                        "Nearby via {} as '{}' (RSSI {} dBm). Settings 'Connected' is separate.",
+                        cycle.source, reading.device_name, reading.rssi
                     )),
                     true,
                 );

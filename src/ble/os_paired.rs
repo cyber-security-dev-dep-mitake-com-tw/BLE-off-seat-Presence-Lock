@@ -121,20 +121,18 @@ mod macos {
                 return None;
             }
 
+            // Prefer raw HCI RSSI. Reject non-negative values: IOBluetooth often
+            // reports stale isConnected=true with rawRSSI=0 while System Settings
+            // still shows "Not Connected". Real headset RSSI is typically -30..-90.
             let raw = device.rawRSSI();
-            if raw != RSSI_UNAVAILABLE {
+            if raw != RSSI_UNAVAILABLE && raw < 0 {
                 return Some(i16::from(raw));
             }
 
-            // Fall back to relative RSSI (0 = golden range).
-            let rel = device.RSSI();
-            if rel != RSSI_UNAVAILABLE {
-                // Map relative golden-range offset into a plausible dBm-ish value.
-                return Some(i16::from(rel).saturating_sub(50));
-            }
-
-            // Connected but RSSI unreadable — still treat as present/nearby.
-            Some(-55)
+            // Do NOT fall back to relative RSSI()==0 ("golden range") or invent
+            // a synthetic -55 — those caused false "Present" while Settings said
+            // Not Connected. Let the BLE advertisement scanner decide instead.
+            None
         }
     }
 

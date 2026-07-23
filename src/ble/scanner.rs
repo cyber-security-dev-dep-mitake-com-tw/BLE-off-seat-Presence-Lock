@@ -32,9 +32,27 @@ impl BtleScanner {
         device_name: &str,
         whitelist: &[String],
     ) -> Result<ScanCycle> {
-        // 1) OS-paired devices (classic + BLE) — matches README pairing model.
+        // Always collect OS-paired names for the UI / config hints.
         let os = query_paired_devices(device_name, whitelist);
         let mut candidates = os.candidates;
+
+        // Prefer BLE advertisement RSSI for presence.
+        // "Not Connected" in System Settings only means no audio/data profile
+        // link — the device can still be nearby and advertising.
+        let ble = self.scan_ble(device_name, whitelist).await?;
+        candidates.extend(ble.candidates);
+        candidates.sort();
+        candidates.dedup();
+
+        if let Some(reading) = ble.reading {
+            return Ok(ScanCycle {
+                reading: Some(reading),
+                candidates,
+                source: "ble-scan",
+            });
+        }
+
+        // Fallback: classic OS-connected link with a valid negative raw RSSI.
         if let Some(reading) = os.reading {
             return Ok(ScanCycle {
                 reading: Some(reading),
@@ -43,7 +61,18 @@ impl BtleScanner {
             });
         }
 
-        // 2) BLE advertisement / GATT scan via btleplug.
+        Ok(ScanCycle {
+            reading: None,
+            candidates,
+            source: "none",
+        })
+    }
+
+    async fn scan_ble(
+        &mut self,
+        device_name: &str,
+        whitelist: &[String],
+    ) -> Result<ScanCycle> {
         self.adapter
             .start_scan(ScanFilter::default())
             .await
@@ -66,9 +95,7 @@ impl BtleScanner {
                 _ => continue,
             };
 
-            let name = props.local_name.clone().filter(|n| !n.trim().is_empty());
-
-            let Some(name) = name else {
+            let Some(name) = props.local_name.clone().filter(|n| !n.trim().is_empty()) else {
                 continue;
             };
 
@@ -78,32 +105,17 @@ impl BtleScanner {
                 continue;
             }
 
-            let display_name = name.clone();
-
-            let rssi = if let Some(r) = props.rssi {
-                r
-            } else {
-                // Connect and read RSSI when advertisement has no RSSI.
-                if !peripheral.is_connected().await.unwrap_or(false) {
-                    if let Err(e) = peripheral.connect().await {
-                        log::debug!("BLE connect failed for {display_name}: {e}");
-                        continue;
-                    }
-                }
-                match peripheral.read_rssi().await {
-                    Ok(r) => r,
-                    Err(e) => {
-                        log::debug!("read_rssi failed for {display_name}: {e}");
-                        let _ = peripheral.disconnect().await;
-                        continue;
-                    }
-                }
+            // Presence uses advertisement RSSI only — do not GATT-connect.
+            // Connecting would create an LE link that confuses "Connected" state.
+            let Some(rssi) = props.rssi else {
+                log::debug!("BLE device '{name}' has no advertisement RSSI yet");
+                continue;
             };
 
-            log::info!("[ble-scan] matched '{display_name}' rssi={rssi} dBm");
+            log::info!("[ble-scan] matched '{name}' rssi={rssi} dBm (advertisement)");
 
             let candidate = BleScanResult {
-                device_name: display_name,
+                device_name: name,
                 rssi,
             };
             best = Some(match best {
@@ -116,24 +128,25 @@ impl BtleScanner {
             log::debug!("stop_scan: {e}");
         }
 
-        candidates.extend(ble_names);
-        candidates.sort();
-        candidates.dedup();
-
         if best.is_none() {
             log::info!(
-                "no match for '{device_name}'. paired/seen devices: {}",
-                if candidates.is_empty() {
-                    "<none — check Bluetooth permission / pairing>".into()
+                "no BLE advertisement match for '{device_name}'. seen names: {}",
+                if ble_names.is_empty() {
+                    "<none>".into()
                 } else {
-                    candidates.join(", ")
+                    {
+                        let mut n = ble_names.clone();
+                        n.sort();
+                        n.dedup();
+                        n.join(", ")
+                    }
                 }
             );
         }
 
         Ok(ScanCycle {
             reading: best,
-            candidates,
+            candidates: ble_names,
             source: "ble-scan",
         })
     }
