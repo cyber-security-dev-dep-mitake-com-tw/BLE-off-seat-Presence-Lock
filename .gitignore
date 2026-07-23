@@ -1,8 +1,10 @@
 /target/
+/dist/
 **/*.rs.bk
 .DS_Store
 config.yaml
 *.log
 .idea/
 .vscode/
-PIPE
+robot-out/
+/tmp/PIPE

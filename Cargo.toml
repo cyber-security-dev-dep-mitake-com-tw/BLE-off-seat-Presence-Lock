@@ -7,6 +7,12 @@ description = "Cross-platform BLE presence detection daemon with auto screen loc
 license = "Apache-2.0"
 readme = "README.md"
 
+[package.metadata.wix]
+upgrade-guid = "A7C3E1F2-9B4D-4E8A-8F2C-1D5E6A7B8C9D"
+path-guid = "C0FFEE00-1234-5678-9ABC-DEF012345678"
+license = false
+eula = false
+
 [dependencies]
 btleplug = { version = "0.12", features = ["serde"] }
 eframe = { version = "0.35", features = ["glow"] }

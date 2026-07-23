@@ -1,90 +1,143 @@
-<?xml version='1.0' encoding='windows-1252'?>
+<?xml version='1.0' encoding='utf-8'?>
 <!--
-  WiX source for BLE Presence Lock (WiX Toolset v3 / cargo-wix).
-  Variables {{...}} are substituted by cargo-wix at build time.
+  WiX v3 source for BLE Presence Lock (used by cargo-wix).
+
+  Preprocessor variables provided by cargo-wix at build time:
+    Version, CargoTargetBinDir, CargoTargetDir, CargoProfile, TargetTriple, ...
 -->
-<?if $(sys.BUILDARCH) = x64 ?>
-  <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
+<?if $(sys.BUILDARCH) = x64 or $(sys.BUILDARCH) = arm64 ?>
+    <?define PlatformProgramFilesFolder = "ProgramFiles64Folder" ?>
 <?else ?>
-  <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
+    <?define PlatformProgramFilesFolder = "ProgramFilesFolder" ?>
 <?endif ?>
+
 <Wix xmlns='http://schemas.microsoft.com/wix/2006/wi'>
-  <Product
-    Id='*'
-    Name='BLE Presence Lock'
-    UpgradeCode='A7C3E1F2-9B4D-4E8A-8F2C-1D5E6A7B8C9D'
-    Manufacturer='BLE Presence Lock Contributors'
-    Language='1033'
-    Codepage='1252'
-    Version='$(var.Version)'>
 
-    <Package
-      Id='*'
-      Keywords='Installer'
-      Description='BLE Presence Lock Installer'
-      Manufacturer='BLE Presence Lock Contributors'
-      InstallerVersion='500'
-      Languages='1033'
-      Compressed='yes'
-      InstallScope='perMachine'
-      SummaryCodepage='1252' />
+    <Product
+        Id='*'
+        Name='BLE Presence Lock'
+        UpgradeCode='A7C3E1F2-9B4D-4E8A-8F2C-1D5E6A7B8C9D'
+        Manufacturer='BLE Presence Lock Contributors'
+        Language='1033'
+        Codepage='1252'
+        Version='$(var.Version)'>
 
-    <MajorUpgrade
-      Schedule='afterInstallInitialize'
-      DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.' />
+        <Package
+            Id='*'
+            Keywords='Installer'
+            Description='Cross-platform BLE presence detection with auto screen lock'
+            Manufacturer='BLE Presence Lock Contributors'
+            InstallerVersion='450'
+            Languages='1033'
+            Compressed='yes'
+            InstallScope='perMachine'
+            SummaryCodepage='1252' />
 
-    <Media Id='1' Cabinet='cabinet.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
-    <Property Id='DiskPrompt' Value='BLE Presence Lock Installation' />
+        <MajorUpgrade
+            Schedule='afterInstallInitialize'
+            DowngradeErrorMessage='A newer version of [ProductName] is already installed. Setup will now exit.' />
 
-    <Directory Id='TARGETDIR' Name='SourceDir'>
-      <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
-        <Directory Id='APPLICATIONFOLDER' Name='BLE Presence Lock'>
-          <Component Id='BinaryComponent' Guid='B1C2D3E4-F5A6-4789-8ABC-DEF012345678'>
-            <File
-              Id='BlePresenceLockExe'
-              Name='ble-presence-lock.exe'
-              DiskId='1'
-              Source='target\release\ble-presence-lock.exe'
-              KeyPath='yes' />
-            <File
-              Id='ConfigExample'
-              Name='config.example.yaml'
-              DiskId='1'
-              Source='config.example.yaml' />
-            <File
-              Id='DefaultConfig'
-              Name='config.yaml'
-              DiskId='1'
-              Source='config.example.yaml' />
-            <Shortcut
-              Id='StartMenuShortcut'
-              Directory='ProgramMenuFolder'
-              Name='BLE Presence Lock'
-              WorkingDirectory='APPLICATIONFOLDER'
-              Icon='ProductIcon'
-              IconIndex='0'
-              Advertise='yes' />
-          </Component>
+        <Media Id='1' Cabinet='media1.cab' EmbedCab='yes' DiskPrompt='CD-ROM #1' />
+        <Property Id='DiskPrompt' Value='BLE Presence Lock Installation' />
+
+        <Directory Id='TARGETDIR' Name='SourceDir'>
+            <Directory Id='$(var.PlatformProgramFilesFolder)' Name='PFiles'>
+                <Directory Id='APPLICATIONFOLDER' Name='BLE Presence Lock'>
+
+                    <Directory Id='Bin' Name='bin'>
+                        <Component Id='Path' Guid='C0FFEE00-1234-5678-9ABC-DEF012345678' KeyPath='yes'>
+                            <Environment
+                                Id='PATH'
+                                Name='PATH'
+                                Value='[Bin]'
+                                Permanent='no'
+                                Part='last'
+                                Action='set'
+                                System='yes' />
+                        </Component>
+
+                        <Component Id='Binary0' Guid='B1C2D3E4-F5A6-4789-8ABC-DEF012345678'>
+                            <File
+                                Id='Exe0'
+                                Name='ble-presence-lock.exe'
+                                DiskId='1'
+                                Source='$(var.CargoTargetBinDir)\ble-presence-lock.exe'
+                                KeyPath='yes' />
+                        </Component>
+                    </Directory>
+
+                    <Component Id='ConfigFiles' Guid='D2E3F4A5-B6C7-4890-9BCD-EF0123456789'>
+                        <File
+                            Id='ConfigExample'
+                            Name='config.example.yaml'
+                            DiskId='1'
+                            Source='config.example.yaml'
+                            KeyPath='yes' />
+                        <File
+                            Id='DefaultConfig'
+                            Name='config.yaml'
+                            DiskId='1'
+                            Source='config.example.yaml' />
+                    </Component>
+                </Directory>
+            </Directory>
+
+            <Directory Id='ProgramMenuFolder' Name='Programs'>
+                <Directory Id='ProgramMenuDir' Name='BLE Presence Lock'>
+                    <Component Id='ApplicationShortcut' Guid='E3F4A5B6-C7D8-4901-ABCD-F01234567890'>
+                        <Shortcut
+                            Id='StartMenuShortcut'
+                            Name='BLE Presence Lock'
+                            Description='BLE presence detection with auto screen lock'
+                            Target='[Bin]ble-presence-lock.exe'
+                            WorkingDirectory='Bin'
+                            Icon='ProductICO' />
+                        <RemoveFolder Id='RemoveProgramMenuDir' Directory='ProgramMenuDir' On='uninstall' />
+                        <RegistryValue
+                            Root='HKCU'
+                            Key='Software\BLEPresenceLock'
+                            Name='Installed'
+                            Type='integer'
+                            Value='1'
+                            KeyPath='yes' />
+                    </Component>
+                </Directory>
+            </Directory>
         </Directory>
-      </Directory>
-      <Directory Id='ProgramMenuFolder' />
-    </Directory>
 
-    <Feature
-      Id='MainProgram'
-      Title='BLE Presence Lock'
-      Description='Install BLE Presence Lock application files.'
-      Level='1'
-      ConfigurableDirectory='APPLICATIONFOLDER'>
-      <ComponentRef Id='BinaryComponent' />
-    </Feature>
+        <Feature
+            Id='Binaries'
+            Title='Application'
+            Description='Installs BLE Presence Lock binaries and configuration.'
+            Level='1'
+            ConfigurableDirectory='APPLICATIONFOLDER'
+            AllowAdvertise='no'
+            Display='expand'
+            Absent='disallow'>
+            <ComponentRef Id='Binary0' />
+            <ComponentRef Id='ConfigFiles' />
+            <ComponentRef Id='ApplicationShortcut' />
+            <Feature
+                Id='Environment'
+                Title='PATH Environment Variable'
+                Description='Add the install location to the PATH system environment variable.'
+                Level='1'
+                Absent='allow'>
+                <ComponentRef Id='Path' />
+            </Feature>
+        </Feature>
 
-    <Icon Id='ProductIcon' SourceFile='packaging\windows\icon.ico' />
-    <Property Id='ARPPRODUCTICON' Value='ProductIcon' />
+        <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize' />
 
-    <UI />
-    <UIRef Id='WixUI_InstallDir' />
-    <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf' />
-    <Property Id='WIXUI_INSTALLDIR' Value='APPLICATIONFOLDER' />
-  </Product>
+        <Icon Id='ProductICO' SourceFile='packaging\windows\icon.ico' />
+        <Property Id='ARPPRODUCTICON' Value='ProductICO' />
+
+        <UI>
+            <UIRef Id='WixUI_FeatureTree' />
+            <Publish Dialog='WelcomeDlg' Control='Next' Event='NewDialog' Value='CustomizeDlg' Order='99'>1</Publish>
+            <Publish Dialog='CustomizeDlg' Control='Back' Event='NewDialog' Value='WelcomeDlg' Order='99'>1</Publish>
+        </UI>
+
+        <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf' />
+    </Product>
 </Wix>

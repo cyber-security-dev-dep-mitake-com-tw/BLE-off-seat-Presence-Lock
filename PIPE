@@ -1,0 +1,6 @@
+[2026-07-23T09:05:07Z INFO  ble_presence_lock] BLE Presence Lock v0.1.0 starting (headless=true, mock=true)
+[2026-07-23T09:05:07Z INFO  ble_presence_lock] tracking device='TestPhone' threshold=-80 dBm grace=10s
+[2026-07-23T09:05:07Z INFO  ble_presence_lock] using mock BLE scanner
+[2026-07-23T09:05:07Z INFO  ble_presence_lock] headless monitor started
+[2026-07-23T09:05:07Z INFO  ble_presence_lock::ble::mock] [mock] scan tick=1 device='TestPhone' rssi=-50 dBm
+[2026-07-23T09:05:07Z INFO  ble_presence_lock] device='TestPhone' raw=-50 smoothed=-50.0 state=Present
