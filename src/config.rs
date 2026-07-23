@@ -128,6 +128,7 @@ impl Config {
     }
 
     /// Returns true if `name` should be tracked under current whitelist rules.
+    #[allow(dead_code)]
     pub fn matches_device(&self, name: &str) -> bool {
         if !self.device_whitelist.is_empty() {
             return self

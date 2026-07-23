@@ -34,6 +34,7 @@ impl EmaFilter {
     }
 
     /// Current smoothed value, if any sample has been seen.
+    #[allow(dead_code)]
     pub fn current(&self) -> Option<f64> {
         self.value
     }

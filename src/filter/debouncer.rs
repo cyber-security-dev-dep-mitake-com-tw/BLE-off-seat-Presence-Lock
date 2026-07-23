@@ -57,6 +57,7 @@ impl Debouncer {
     }
 
     /// Whether the last update concluded the device is absent.
+    #[allow(dead_code)]
     pub fn should_lock(&self) -> bool {
         self.locked
     }
